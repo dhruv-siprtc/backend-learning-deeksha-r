@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"go-backend-learning/backend/models"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -36,5 +38,14 @@ func Connect() error {
 
 	DB = db
 	fmt.Println("✅ PostgreSQL connected successfully")
+
+	// Auto Migration
+	err = db.AutoMigrate(&models.User{})
+	if err != nil {
+		fmt.Printf("❌ Failed to migrate database: %v\n", err)
+		return err
+	}
+	fmt.Println("✅ Database migration completed")
+
 	return nil
 }
