@@ -69,6 +69,7 @@ func startServer() {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	e.Use(middleware.CORS())
 
 	// Routes
 	routes.RegisterRoutes(e)
