@@ -1,12 +1,9 @@
 package messaging
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"time"
-
-	"github.com/rabbitmq/amqp091-go"
 )
 
 type UserEvent struct {
@@ -23,7 +20,7 @@ type UserData struct {
 }
 
 func PublishUserEvent(
-	rmq *RabbitMQ,
+	paota *Paota,
 	routingKey string,
 	eventName string,
 	userID int,
@@ -47,22 +44,8 @@ func PublishUserEvent(
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err = rmq.Channel.PublishWithContext(
-		ctx,
-		"user.events", // exchange
-		routingKey,    // routing key
-		false,
-		false,
-		amqp091.Publishing{
-			ContentType:  "application/json",
-			DeliveryMode: amqp091.Persistent,
-			Body:         body,
-		},
-	)
-
+	// Use Paota's generic Publish method
+	err = paota.Publish("user.events", routingKey, body)
 	if err != nil {
 		return err
 	}

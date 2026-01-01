@@ -1,19 +1,21 @@
 package messaging
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/rabbitmq/amqp091-go"
 )
 
-type RabbitMQ struct {
+type Paota struct {
 	Conn    *amqp091.Connection
 	Channel *amqp091.Channel
 }
 
-var Instance *RabbitMQ
+var Instance *Paota
 
 // ConnectRabbitMQ creates connection & channel
 func ConnectRabbitMQ() error {
@@ -49,7 +51,7 @@ func ConnectRabbitMQ() error {
 
 	log.Println("✅ RabbitMQ connected successfully")
 
-	Instance = &RabbitMQ{
+	Instance = &Paota{
 		Conn:    conn,
 		Channel: ch,
 	}
@@ -57,13 +59,32 @@ func ConnectRabbitMQ() error {
 	return nil
 }
 
-func (r *RabbitMQ) Close() {
-	if r.Channel != nil {
-		r.Channel.Close()
+func (p *Paota) Close() {
+	if p.Channel != nil {
+		p.Channel.Close()
 	}
-	if r.Conn != nil {
-		r.Conn.Close()
+	if p.Conn != nil {
+		p.Conn.Close()
 	}
+}
+
+// Publish generic message
+func (p *Paota) Publish(exchange, routingKey string, body []byte) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return p.Channel.PublishWithContext(
+		ctx,
+		exchange,
+		routingKey,
+		false,
+		false,
+		amqp091.Publishing{
+			ContentType:  "application/json",
+			DeliveryMode: amqp091.Persistent,
+			Body:         body,
+		},
+	)
 }
 
 // Alias for RabbitMQ delivery type

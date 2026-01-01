@@ -7,7 +7,7 @@ import (
 	amqp091 "github.com/rabbitmq/amqp091-go"
 )
 
-func StartUserEventConsumer(rmq *RabbitMQ) error {
+func StartUserEventConsumer(rmq *Paota) error {
 	// 1️⃣ Declare Dead Letter Exchange (DLX)
 	dlxName := "user.events.dlx"
 	err := rmq.Channel.ExchangeDeclare(
