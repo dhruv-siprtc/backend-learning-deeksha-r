@@ -29,20 +29,48 @@ func main() {
 		defer messaging.Instance.Close()
 	}
 
-	// Start RabbitMQ Consumer
-	if err := messaging.StartUserEventConsumer(messaging.Instance); err != nil {
-		log.Printf("Failed to start RabbitMQ consumer: %v", err)
+	// Determine service mode
+	serviceName := os.Getenv("SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = "all" // Default to running both
 	}
 
-	// Create Echo instance
+	log.Printf("🚀 Starting service in mode: %s", serviceName)
+
+	switch serviceName {
+	case "worker":
+		// Start RabbitMQ Consumer Only
+		if err := messaging.StartUserEventConsumer(messaging.Instance); err != nil {
+			log.Fatalf("Failed to start consumers: %v", err)
+		}
+		// Block forever to keep the consumer running
+		select {}
+
+	case "api":
+		startServer()
+
+	case "all":
+		// Start RabbitMQ Consumer
+		if err := messaging.StartUserEventConsumer(messaging.Instance); err != nil {
+			log.Fatalf("Failed to start consumers: %v", err)
+		}
+		// Start API Server
+		startServer()
+
+	default:
+		log.Fatalf("Unknown SERVICE_NAME: %s. Valid values: 'worker', 'api', 'all'", serviceName)
+	}
+}
+
+func startServer() {
+	// Initialize Echo
 	e := echo.New()
 
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
 
-	// Register routes
+	// Routes
 	routes.RegisterRoutes(e)
 
 	// Start server
@@ -50,9 +78,5 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-
-	log.Printf("Server starting on port %s...", port)
-	if err := e.Start(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	e.Logger.Fatal(e.Start(":" + port))
 }
