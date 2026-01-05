@@ -1,189 +1,153 @@
 package messaging
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 
-	amqp091 "github.com/rabbitmq/amqp091-go"
+	"github.com/surendratiwari3/paota/config"
+	"github.com/surendratiwari3/paota/schema"
+	"github.com/surendratiwari3/paota/workerpool"
 )
 
-func StartUserEventConsumer(rmq *Paota) error {
-	// 1️⃣ Declare Dead Letter Exchange (DLX)
-	dlxName := "user.events.dlx"
-	err := rmq.Channel.ExchangeDeclare(
-		dlxName,
-		"topic",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		return err
+type ConsumerService struct {
+	workerPools []*workerpool.Pool
+}
+
+var consumerInstance *ConsumerService
+
+// Initialize and start consumers
+func StartUserEventConsumer() error {
+	consumerInstance = &ConsumerService{
+		workerPools: make([]*workerpool.Pool, 0),
 	}
 
-	// 2️⃣ Declare Dead Letter Queue (DLQ)
-	dlqName := "user.events.dlq"
-	_, err = rmq.Channel.QueueDeclare(
-		dlqName,
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		return err
+	// Start consumer for USER_CREATED
+	if err := consumerInstance.startConsumer(UserCreatedConfig); err != nil {
+		return fmt.Errorf("failed to start USER_CREATED consumer: %w", err)
 	}
 
-	// 3️⃣ Bind DLQ to DLX
-	err = rmq.Channel.QueueBind(
-		dlqName,
-		"#", // bind all keys to DLQ for now
-		dlxName,
-		false,
-		nil,
-	)
-	if err != nil {
-		return err
+	// Start consumer for USER_UPDATED
+	if err := consumerInstance.startConsumer(UserUpdatedConfig); err != nil {
+		return fmt.Errorf("failed to start USER_UPDATED consumer: %w", err)
 	}
 
-	// 4️⃣ Declare Main Exchange
-	exchangeName := "user.events"
-	err = rmq.Channel.ExchangeDeclare(
-		exchangeName,
-		"topic",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-
-	// 5️⃣ Declare queues with DLX configuration
-	args := amqp091.Table{
-		"x-dead-letter-exchange": dlxName,
-	}
-
-	createdQueue, err := rmq.Channel.QueueDeclare(
-		"user.created.queue",
-		true,
-		false,
-		false,
-		false,
-		args,
-	)
-	if err != nil {
-		return err
-	}
-
-	updatedQueue, err := rmq.Channel.QueueDeclare(
-		"user.updated.queue",
-		true,
-		false,
-		false,
-		false,
-		args,
-	)
-	if err != nil {
-		return err
-	}
-
-	// 6️⃣ Bind queues to main exchange
-	err = rmq.Channel.QueueBind(
-		createdQueue.Name,
-		"user.created",
-		exchangeName,
-		false,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-
-	err = rmq.Channel.QueueBind(
-		updatedQueue.Name,
-		"user.updated",
-		exchangeName,
-		false,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-
-	// 7️⃣ Start consuming
-	createdMsgs, err := rmq.Channel.Consume(
-		createdQueue.Name,
-		"",
-		false, // manual ack
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-
-	updatedMsgs, err := rmq.Channel.Consume(
-		updatedQueue.Name,
-		"",
-		false, // manual ack
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-
-	go handleCreatedUsers(createdMsgs)
-	go handleUpdatedUsers(updatedMsgs)
-
-	log.Println("📥 RabbitMQ consumers started with DLQ support")
+	log.Println("📥 Paota Consumers started successfully")
 	return nil
 }
 
-// ---------------- HANDLERS ----------------
+func (cs *ConsumerService) startConsumer(rmqConfig RmqConfig) error {
+	rmqConfig.RmQURL = GetRabbitMQURL()
 
-func handleCreatedUsers(messages <-chan Delivery) {
-	for msg := range messages {
-		var event UserEvent
-
-		if err := json.Unmarshal(msg.Body, &event); err != nil {
-			log.Printf("❌ Failed to parse USER_CREATED: %v", err)
-			msg.Nack(false, false) // Requeue: false (send to DLQ)
-			continue
-		}
-
-		log.Printf("[USER_CREATED] Welcome email sent to %s", event.Data.Email)
-
-		if err := msg.Ack(false); err != nil {
-			log.Printf("❌ Failed to ack message: %v", err)
-		}
+	// Create Paota config
+	paotaConfig := config.Config{
+		Broker:        "amqp",
+		TaskQueueName: rmqConfig.QueueName,
+		AMQP: &config.AMQPConfig{
+			Url:                rmqConfig.RmQURL,
+			Exchange:           rmqConfig.ExchangeName,
+			ExchangeType:       "topic",
+			BindingKey:         rmqConfig.BindingKey,
+			PrefetchCount:      rmqConfig.PrefetchCount,
+			ConnectionPoolSize: rmqConfig.ConnectionPoolSize,
+			DelayedQueue:       rmqConfig.DelayedQueue,
+			TimeoutQueue:       rmqConfig.TimeoutQueue,
+			FailedQueue:        rmqConfig.FailedQueue,
+		},
 	}
+
+	// Set application config
+	err := config.GetConfigProvider().SetApplicationConfig(paotaConfig)
+	if err != nil {
+		return fmt.Errorf("failed to set config: %w", err)
+	}
+
+	// Create worker pool
+	wp, err := workerpool.NewWorkerPool(
+		context.Background(),
+		10, // number of workers
+		rmqConfig.QueueName,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create worker pool: %w", err)
+	}
+
+	// Register task handlers
+	tasks := map[string]interface{}{}
+	switch rmqConfig.QueueTaskName {
+	case UserCreatedConfig.QueueTaskName:
+		tasks[rmqConfig.QueueTaskName] = handleUserCreatedTask
+	case UserUpdatedConfig.QueueTaskName:
+		tasks[rmqConfig.QueueTaskName] = handleUserUpdatedTask
+	}
+
+	err = wp.RegisterTasks(tasks)
+	if err != nil {
+		return fmt.Errorf("failed to register tasks: %w", err)
+	}
+
+	// Start the worker pool
+	err = wp.Start()
+	if err != nil {
+		return fmt.Errorf("failed to start worker pool: %w", err)
+	}
+
+	cs.workerPools = append(cs.workerPools, &wp)
+	log.Printf("✅ Consumer started for queue: %s", rmqConfig.QueueName)
+	return nil
 }
 
-func handleUpdatedUsers(messages <-chan Delivery) {
-	for msg := range messages {
-		var event UserEvent
-
-		if err := json.Unmarshal(msg.Body, &event); err != nil {
-			log.Printf("❌ Failed to parse USER_UPDATED: %v", err)
-			msg.Nack(false, false) // Requeue: false (send to DLQ)
-			continue
-		}
-
-		log.Printf("[USER_UPDATED] User %d profile updated", event.Data.UserID)
-
-		if err := msg.Ack(false); err != nil {
-			log.Printf("❌ Failed to ack message: %v", err)
-		}
+// Task handler for USER_CREATED events
+func handleUserCreatedTask(sig *schema.Signature) error {
+	if len(sig.Args) == 0 {
+		return fmt.Errorf("no arguments provided")
 	}
+
+	eventJSON, ok := sig.Args[0].Value.(string)
+	if !ok {
+		return fmt.Errorf("invalid argument type")
+	}
+
+	var event UserEvent
+	if err := json.Unmarshal([]byte(eventJSON), &event); err != nil {
+		log.Printf("❌ Failed to parse USER_CREATED: %v", err)
+		return err
+	}
+
+	// Business logic for USER_CREATED
+	log.Printf("✅ [USER_CREATED] Welcome email sent to %s (User ID: %d)",
+		event.Data.Email, event.Data.UserID)
+
+	// Add your actual business logic here
+	// e.g., send email, update cache, etc.
+
+	return nil
+}
+
+// Task handler for USER_UPDATED events
+func handleUserUpdatedTask(sig *schema.Signature) error {
+	if len(sig.Args) == 0 {
+		return fmt.Errorf("no arguments provided")
+	}
+
+	eventJSON, ok := sig.Args[0].Value.(string)
+	if !ok {
+		return fmt.Errorf("invalid argument type")
+	}
+
+	var event UserEvent
+	if err := json.Unmarshal([]byte(eventJSON), &event); err != nil {
+		log.Printf("❌ Failed to parse USER_UPDATED: %v", err)
+		return err
+	}
+
+	// Business logic for USER_UPDATED
+	log.Printf("✅ [USER_UPDATED] User %d profile updated (Name: %s, Email: %s)",
+		event.Data.UserID, event.Data.Name, event.Data.Email)
+
+	// Add your actual business logic here
+	// e.g., invalidate cache, send notification, etc.
+
+	return nil
 }

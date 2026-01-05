@@ -21,12 +21,9 @@ func main() {
 	if err := config.Connect(); err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	// Connect to RabbitMQ
-	if err := messaging.ConnectRabbitMQ(); err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-	if messaging.Instance != nil {
-		defer messaging.Instance.Close()
+	// Initialize Paota Producer
+	if err := messaging.InitProducer(); err != nil {
+		log.Fatalf("Failed to initialize Paota producer: %v", err)
 	}
 
 	// Determine service mode
@@ -39,8 +36,8 @@ func main() {
 
 	switch serviceName {
 	case "worker":
-		// Start RabbitMQ Consumer Only
-		if err := messaging.StartUserEventConsumer(messaging.Instance); err != nil {
+		// Start Paota Consumer Only
+		if err := messaging.StartUserEventConsumer(); err != nil {
 			log.Fatalf("Failed to start consumers: %v", err)
 		}
 		// Block forever to keep the consumer running
@@ -50,8 +47,8 @@ func main() {
 		startServer()
 
 	case "all":
-		// Start RabbitMQ Consumer
-		if err := messaging.StartUserEventConsumer(messaging.Instance); err != nil {
+		// Start Paota Consumer
+		if err := messaging.StartUserEventConsumer(); err != nil {
 			log.Fatalf("Failed to start consumers: %v", err)
 		}
 		// Start API Server

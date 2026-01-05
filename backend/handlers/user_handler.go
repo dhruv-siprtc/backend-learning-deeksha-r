@@ -60,18 +60,14 @@ func CreateUser(c echo.Context) error {
 	}
 
 	// Publish USER_CREATED event
-	if messaging.Instance != nil {
-		if err := messaging.PublishUserEvent(
-			messaging.Instance,
-			"user.created",
-			"USER_CREATED",
-			int(user.ID),
-			user.Name,
-			user.Email,
-		); err != nil {
-			// Log the error but don't fail the request since user creation was successful
-			c.Logger().Errorf("Failed to publish USER_CREATED event: %v", err)
-		}
+	if err := messaging.PublishUserEvent(
+		"USER_CREATED",
+		int(user.ID),
+		user.Name,
+		user.Email,
+	); err != nil {
+		// Log the error but don't fail the request since user creation was successful
+		c.Logger().Errorf("Failed to publish USER_CREATED event: %v", err)
 	}
 
 	return c.JSON(http.StatusCreated, response.ToUserResponse(user))
@@ -178,18 +174,14 @@ func UpdateUser(c echo.Context) error {
 	config.DB.First(&user, id)
 
 	// Publish USER_UPDATED event
-	if messaging.Instance != nil {
-		if err := messaging.PublishUserEvent(
-			messaging.Instance,
-			"user.updated",
-			"USER_UPDATED",
-			int(user.ID),
-			user.Name,
-			user.Email,
-		); err != nil {
-			// Log the error but don't fail the request since user update was successful
-			c.Logger().Errorf("Failed to publish USER_UPDATED event: %v", err)
-		}
+	if err := messaging.PublishUserEvent(
+		"USER_UPDATED",
+		int(user.ID),
+		user.Name,
+		user.Email,
+	); err != nil {
+		// Log the error but don't fail the request since user update was successful
+		c.Logger().Errorf("Failed to publish USER_UPDATED event: %v", err)
 	}
 
 	return c.JSON(http.StatusOK, response.ToUserResponse(user))
