@@ -27,6 +27,7 @@ services:
   app:
     build: .
     environment:
+      SERVICE_NAME: api
       PGHOST: db
       PGUSER: postgres
       PGPASSWORD: password
