@@ -1,0 +1,28 @@
+=== RUN   TestFullFlow
+2026/01/07 19:32:20 🚀 Starting Full Flow Refactor Test
+2026/01/07 19:32:20 ✅ Paota Producers initialized (Shared Connection)
+2026/01/07 19:32:21 🔌 Shared Broker identified from first pool
+2026/01/07 19:32:21 📥 Consumer starting for queue: user.created.queue
+2026/01/07 19:32:21 [INFO] [worker pool called]
+2026/01/07 19:32:21 [INFO] [worker pool started]
+2026/01/07 19:32:21 [INFO] [[*] Waiting for messages. To exit press CTRL+C]
+2026/01/07 19:32:21 🔗 Second pool sharing connection from first pool broker
+2026/01/07 19:32:21 📥 Paota Consumers initialized (Shared Connection)
+2026/01/07 19:32:21 ⏳ Waiting for consumers to connect...
+2026/01/07 19:32:21 📥 Consumer starting for queue: user.updated.queue
+2026/01/07 19:32:21 [INFO] [worker pool called]
+2026/01/07 19:32:21 [INFO] [worker pool started]
+2026/01/07 19:32:21 [INFO] [[*] Waiting for messages. To exit press CTRL+C]
+2026/01/07 19:32:24 📤 Publishing USER_CREATED...
+2026/01/07 19:32:24 👤 [EVENT] USER_CREATED: 101 (john@refactor.com)
+2026/01/07 19:32:24 📤 Event published: task.user.created (RoutingKey: user.created.key)
+2026/01/07 19:32:24 📤 Publishing USER_UPDATED...
+2026/01/07 19:32:24 📤 Event published: task.user.updated (RoutingKey: user.updated.key)
+2026/01/07 19:32:24 ⏳ Waiting for consumers to process events...
+2026/01/07 19:32:29 📊 Verification -> Created: 1, Updated: 0
+    flow_test.go:63: ❌ USER_UPDATED was not received
+2026/01/07 19:32:29 ✅ Full Flow Test Completed
+--- FAIL: TestFullFlow (8.90s)
+FAIL
+FAIL	go-backend-learning/backend/messaging	9.209s
+FAIL

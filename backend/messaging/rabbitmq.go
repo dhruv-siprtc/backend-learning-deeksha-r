@@ -1,91 +1,38 @@
 package messaging
 
 import (
-	"context"
-	"fmt"
 	"log"
-	"os"
-	"time"
+	"sync"
 
 	"github.com/rabbitmq/amqp091-go"
 )
 
-type Paota struct {
-	Conn    *amqp091.Connection
-	Channel *amqp091.Channel
+var (
+	conn     *amqp091.Connection
+	connOnce sync.Once
+)
+
+// GetConnection returns a singleton RabbitMQ connection.
+// This ensures that the application can maintain a single connection as requested,
+// even if multiple worker pools are used for separate queues.
+func GetConnection() (*amqp091.Connection, error) {
+	var err error
+	connOnce.Do(func() {
+		url := GetRabbitMQURL()
+		conn, err = amqp091.Dial(url)
+		if err != nil {
+			log.Printf("❌ Failed to connect to RabbitMQ: %v", err)
+		} else {
+			log.Println("✅ RabbitMQ singleton connection established")
+		}
+	})
+	return conn, err
 }
 
-var Instance *Paota
-
-// ConnectRabbitMQ creates connection & channel
-func ConnectRabbitMQ() error {
-	host := os.Getenv("RABBITMQ_HOST")
-	if host == "" {
-		host = "localhost"
-	}
-	port := os.Getenv("RABBITMQ_PORT")
-	if port == "" {
-		port = "5672"
-	}
-	user := os.Getenv("RABBITMQ_USER")
-	if user == "" {
-		user = "guest"
-	}
-	password := os.Getenv("RABBITMQ_PASSWORD")
-	if password == "" {
-		password = "guest"
-	}
-
-	url := fmt.Sprintf("amqp://%s:%s@%s:%s/", user, password, host, port)
-
-	conn, err := amqp091.Dial(url)
-	if err != nil {
-		return fmt.Errorf("failed to connect to RabbitMQ: %w", err)
-	}
-
-	ch, err := conn.Channel()
-	if err != nil {
+// CloseConnection closes the singleton connection
+func CloseConnection() {
+	if conn != nil {
 		conn.Close()
-		return fmt.Errorf("failed to open channel: %w", err)
-	}
-
-	log.Println("✅ RabbitMQ connected successfully")
-
-	Instance = &Paota{
-		Conn:    conn,
-		Channel: ch,
-	}
-
-	return nil
-}
-
-func (p *Paota) Close() {
-	if p.Channel != nil {
-		p.Channel.Close()
-	}
-	if p.Conn != nil {
-		p.Conn.Close()
+		log.Println("👋 RabbitMQ connection closed")
 	}
 }
-
-// Publish generic message
-func (p *Paota) Publish(exchange, routingKey string, body []byte) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	return p.Channel.PublishWithContext(
-		ctx,
-		exchange,
-		routingKey,
-		false,
-		false,
-		amqp091.Publishing{
-			ContentType:  "application/json",
-			DeliveryMode: amqp091.Persistent,
-			Body:         body,
-		},
-	)
-}
-
-// Alias for RabbitMQ delivery type
-type Delivery = amqp091.Delivery

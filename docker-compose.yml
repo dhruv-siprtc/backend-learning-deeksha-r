@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:15-alpine
+    image: postgres:15
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -26,18 +26,11 @@ services:
 
   app:
     build: .
+    env_file:
+      - .env
     environment:
-      SERVICE_NAME: api
-      PGHOST: db
-      PGUSER: postgres
-      PGPASSWORD: password
-      PGDATABASE: user_management
-      PGPORT: 5432
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASSWORD: guest
-      PORT: 8080
+      - PGHOST=db
+      - RABBITMQ_HOST=rabbitmq
     ports:
       - "8080:8080"
     depends_on:
