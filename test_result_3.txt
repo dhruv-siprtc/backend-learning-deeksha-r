@@ -1,0 +1,25 @@
+=== RUN   TestFullFlow
+2026/01/07 19:03:15 🚀 Starting Full Flow Refactor Test
+2026/01/07 19:03:15 ✅ Paota Producers initialized (Shared Connection)
+2026/01/07 19:03:15 📥 Consumer starting for queue: user.created.queue
+2026/01/07 19:03:15 [INFO] [worker pool called]
+2026/01/07 19:03:15 [INFO] [worker pool started]
+2026/01/07 19:03:15 [INFO] [[*] Waiting for messages. To exit press CTRL+C]
+2026/01/07 19:03:15 📥 Paota Consumers initialized (Shared Connection)
+2026/01/07 19:03:15 📥 Consumer starting for queue: user.updated.queue
+2026/01/07 19:03:15 ⏳ Waiting for consumers to connect...
+2026/01/07 19:03:15 [INFO] [worker pool called]
+2026/01/07 19:03:15 [INFO] [worker pool started]
+2026/01/07 19:03:15 [INFO] [[*] Waiting for messages. To exit press CTRL+C]
+2026/01/07 19:03:15 📝 [EVENT] USER_UPDATED: 101 (john@refactor.com)
+2026/01/07 19:03:18 📤 Publishing USER_CREATED...
+2026/01/07 19:03:18 👤 [EVENT] USER_CREATED: 101 (john@refactor.com)
+2026/01/07 19:03:18 📤 Event published: task.user.created (RoutingKey: user.created.key)
+2026/01/07 19:03:18 📤 Publishing USER_UPDATED...
+2026/01/07 19:03:18 📝 [EVENT] USER_UPDATED: 101 (john@refactor.com)
+2026/01/07 19:03:18 📤 Event published: task.user.updated (RoutingKey: user.updated.key)
+2026/01/07 19:03:18 ⏳ Waiting for consumers to process events (check logs below)...
+2026/01/07 19:03:23 ✅ Full Flow Test Completed
+--- PASS: TestFullFlow (8.33s)
+PASS
+ok  	go-backend-learning/backend/messaging	(cached)
