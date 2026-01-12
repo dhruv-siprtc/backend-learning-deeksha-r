@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 
 	"go-backend-learning/backend/models"
 
@@ -14,15 +13,11 @@ import (
 var DB *gorm.DB
 
 func Connect() error {
-	host := os.Getenv("PGHOST")
-	user := os.Getenv("PGUSER")
-	password := os.Getenv("PGPASSWORD")
-	dbname := os.Getenv("PGDATABASE")
-	port := os.Getenv("PGPORT")
-
-	if host == "" || user == "" || dbname == "" || port == "" {
-		return fmt.Errorf("database configuration missing")
-	}
+	host := Config.Postgres.Host
+	user := Config.Postgres.User
+	password := Config.Postgres.Password
+	dbname := Config.Postgres.DB
+	port := Config.Postgres.Port
 
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Kolkata",

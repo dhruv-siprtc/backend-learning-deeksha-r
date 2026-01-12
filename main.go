@@ -2,7 +2,8 @@ package main
 
 import (
 	"go-backend-learning/backend/config"
-	"go-backend-learning/backend/messaging"
+	"go-backend-learning/backend/consumer"
+	"go-backend-learning/backend/producer"
 	"go-backend-learning/backend/routes"
 	"log"
 	"os"
@@ -13,49 +14,78 @@ import (
 )
 
 func main() {
-	// Load .env file
+	// 1. Load .env file
 	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️  No .env file found")
 	}
-	// Connect to database
+
+	// 2. Initialize Config
+	config.InitConfig()
+
+	// 3. Connect to database
 	if err := config.Connect(); err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	// Initialize Paota Producer
-	if err := messaging.InitProducer(); err != nil {
-		log.Fatalf("Failed to initialize Paota producer: %v", err)
+
+	// 4. Initialize Producer anyway (if we are in API mode or ALL mode)
+	// Even if it's worker mode, it doesn't hurt to have it ready if needed,
+	// but following reference we should initialize it.
+	prodConfig := producer.RmqConfig{
+		QueueName:          config.Config.UserTaskProducer.QueueName,
+		ExchangeName:       config.Config.UserTaskProducer.ExchangeName,
+		BindingKey:         config.Config.UserTaskProducer.BindingKeyName,
+		PrefetchCount:      1,
+		ConnectionPoolSize: 1,
+		DelayedQueue:       config.Config.UserTaskProducer.DelayQueueName,
+		RmQURL:             config.Config.UserTaskProducer.RabbitMQUrl,
+		FailedQueue:        config.Config.UserTaskProducer.FailedQueue,
+		TimeoutQueue:       config.Config.UserTaskProducer.TimeoutQueue,
+	}
+	if err := producer.UserProducer.Initialize(prodConfig); err != nil {
+		log.Fatalf("Failed to initialize producer: %v", err)
 	}
 
-	// Determine service mode
-	serviceName := os.Getenv("SERVICE_NAME")
-	if serviceName == "" {
-		serviceName = "all" // Default to running both
+	// 5. Determine service mode
+	serviceLauncher := os.Getenv("SERVICE_LAUNCHER")
+	if serviceLauncher == "" {
+		serviceLauncher = config.Config.Server.ServiceLauncher
 	}
 
-	log.Printf("🚀 Starting service in mode: %s", serviceName)
+	log.Printf("🚀 Starting service launcher: %s", serviceLauncher)
 
-	switch serviceName {
-	case "worker":
-		// Start Paota Consumer Only
-		if err := messaging.StartUserEventConsumer(); err != nil {
-			log.Fatalf("Failed to start consumers: %v", err)
-		}
-		// Block forever to keep the consumer running
+	switch serviceLauncher {
+	case "CONSUMER":
+		startConsumer()
+		// Block forever
 		select {}
 
-	case "api":
+	case "PRODUCER", "API":
 		startServer()
 
-	case "all":
-		// Start Paota Consumer
-		if err := messaging.StartUserEventConsumer(); err != nil {
-			log.Fatalf("Failed to start consumers: %v", err)
-		}
-		// Start API Server
+	case "ALL":
+		go startConsumer()
 		startServer()
 
 	default:
-		log.Fatalf("Unknown SERVICE_NAME: %s. Valid values: 'worker', 'api', 'all'", serviceName)
+		log.Fatalf("Unknown SERVICE_LAUNCHER: %s. Valid values: 'CONSUMER', 'PRODUCER', 'API', 'ALL'", serviceLauncher)
+	}
+}
+
+func startConsumer() {
+	consConfig := consumer.RmqConfig{
+		QueueName:          config.Config.ConsumerConf.QueueName,
+		ExchangeName:       config.Config.ConsumerConf.ExchangeName,
+		BindingKey:         config.Config.ConsumerConf.BindingKeyName,
+		PrefetchCount:      10,
+		ConnectionPoolSize: 1,
+		DelayedQueue:       config.Config.ConsumerConf.DelayQueueName,
+		RmQURL:             config.Config.ConsumerConf.RabbitMQUrl,
+		FailedQueue:        config.Config.ConsumerConf.FailedQueue,
+		TimeoutQueue:       config.Config.ConsumerConf.TimeoutQueue,
+	}
+	mgr := &consumer.ConsumerManager{}
+	if err := mgr.Initialize(consConfig); err != nil {
+		log.Fatalf("Failed to initialize consumer: %v", err)
 	}
 }
 
@@ -72,9 +102,9 @@ func startServer() {
 	routes.RegisterRoutes(e)
 
 	// Start server
-	port := os.Getenv("PORT")
+	port := config.Config.Server.Port
 	if port == "" {
-		port = "8080"
+		port = ":8080"
 	}
-	e.Logger.Fatal(e.Start(":" + port))
+	e.Logger.Fatal(e.Start(port))
 }

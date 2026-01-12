@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"go-backend-learning/backend/config"
-	"go-backend-learning/backend/messaging"
 	"go-backend-learning/backend/models"
+	"go-backend-learning/backend/producer"
 	"go-backend-learning/backend/request"
 	"go-backend-learning/backend/response"
 
@@ -59,15 +59,9 @@ func CreateUser(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create user", "details": err.Error()})
 	}
 
-	// Publish USER_CREATED event
-	if err := messaging.PublishUserEvent(
-		"USER_CREATED",
-		int(user.ID),
-		user.Name,
-		user.Email,
-	); err != nil {
-		// Log the error but don't fail the request since user creation was successful
-		c.Logger().Errorf("Failed to publish USER_CREATED event: %v", err)
+	// Publish user task event using the new producer manager
+	if err := producer.UserProducer.ProcesswithVerifyUser(user, config.Config.UserTaskProducer.QueueName); err != nil {
+		c.Logger().Errorf("Failed to publish user event: %v", err)
 	}
 
 	return c.JSON(http.StatusCreated, response.ToUserResponse(user))
@@ -173,15 +167,9 @@ func UpdateUser(c echo.Context) error {
 	// Fetch updated user
 	config.DB.First(&user, id)
 
-	// Publish USER_UPDATED event
-	if err := messaging.PublishUserEvent(
-		"USER_UPDATED",
-		int(user.ID),
-		user.Name,
-		user.Email,
-	); err != nil {
-		// Log the error but don't fail the request since user update was successful
-		c.Logger().Errorf("Failed to publish USER_UPDATED event: %v", err)
+	// Publish user task event for update
+	if err := producer.UserProducer.ProcesswithVerifyUser(user, config.Config.UserTaskProducer.QueueName); err != nil {
+		c.Logger().Errorf("Failed to publish user update event: %v", err)
 	}
 
 	return c.JSON(http.StatusOK, response.ToUserResponse(user))

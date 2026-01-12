@@ -3,10 +3,11 @@ module go-backend-learning
 go 1.24.0
 
 require (
+	github.com/caarlos0/env/v7 v7.1.0
 	github.com/go-playground/validator/v10 v10.29.0
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.14.0
-	github.com/rabbitmq/amqp091-go v1.10.0
+	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	github.com/surendratiwari3/paota v1.1.11
 	golang.org/x/crypto v0.46.0
@@ -35,6 +36,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/rabbitmq/amqp091-go v1.10.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
